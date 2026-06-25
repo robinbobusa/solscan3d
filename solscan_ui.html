@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solscan · 3D Flow</title>
+<script>
+  // Ловим ЛЮБУЮ ошибку (включая сбой загрузки библиотек) и показываем на экране,
+  // чтобы вместо белого окна был понятный текст.
+  function showFatal(msg, extra){
+    var b = document.getElementById('fatal');
+    if(!b){
+      b = document.createElement('div'); b.id='fatal';
+      b.style.cssText='position:fixed;left:12px;bottom:12px;z-index:99999;max-width:70vw;'+
+        'background:#2a0810;color:#ffc2c2;border:1px solid #ff453a;border-radius:12px;'+
+        'padding:12px 14px;font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;'+
+        'box-shadow:0 12px 40px rgba(0,0,0,.5)';
+      (document.body||document.documentElement).appendChild(b);
+    }
+    b.textContent = 'ОШИБКА: ' + msg + (extra ? ('\n'+extra) : '');
+  }
+  window.addEventListener('error', function(e){
+    if(e && e.target && e.target.src) showFatal('не загрузился файл', e.target.src);
+    else showFatal((e&&e.message)||'script error', (e&&e.filename?e.filename+':'+e.lineno:''));
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    showFatal('promise: ' + ((e&&e.reason&&e.reason.message)||e&&e.reason));
+  });
+</script>
+<script src="/lib/three.min.js"></script>
+<script src="/lib/three-spritetext.min.js"></script>
+<script src="/lib/3d-force-graph.min.js"></script>
+<style>
+  :root{
+    --bg1:#14121a; --bg2:#070609;
+    --panel:rgba(48,50,54,0.72);
+    --panel-solid:#2b2d31;
+    --stroke:rgba(255,255,255,0.10);
+    --stroke-strong:rgba(255,255,255,0.18);
+    --text:#eceef1; --muted:#9aa0a8;
+    --accent:#0a84ff; --accent2:#64d2ff;
+    --in:#30d158; --out:#ff9f0a;
+    --chip:rgba(255,255,255,0.06);
+    --shadow:0 12px 40px rgba(0,0,0,0.45);
+    --radius:18px;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  html,body{margin:0;height:100%;overflow:hidden;
+    font-family:-apple-system,"SF Pro Display","SF Pro Text","Segoe UI",Roboto,sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(1100px 760px at 72% -12%, #2a1840 0%, rgba(42,24,64,0) 58%),
+      radial-gradient(900px 700px at 12% 110%, #161028 0%, rgba(22,16,40,0) 55%),
+      linear-gradient(160deg,var(--bg1),var(--bg2));}
+  #graph{position:fixed;inset:0;}
+  /* ── Панель управления (электрический серый, стекло) ── */
+  #panel{
+    position:fixed;top:18px;left:18px;width:330px;max-height:calc(100vh - 36px);
+    display:flex;flex-direction:column;gap:14px;padding:16px;z-index:10;
+    background:var(--panel);backdrop-filter:blur(22px) saturate(140%);
+    -webkit-backdrop-filter:blur(22px) saturate(140%);
+    border:1px solid var(--stroke);border-radius:var(--radius);box-shadow:var(--shadow);
+    overflow:auto;}
+  .title{display:flex;align-items:center;gap:10px;}
+  .dot{width:11px;height:11px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%,var(--accent2),var(--accent));
+    box-shadow:0 0 12px var(--accent);}
+  .title h1{font-size:16px;font-weight:600;letter-spacing:.3px;margin:0;}
+  .title small{color:var(--muted);font-size:11px;margin-left:auto;}
+  .field{display:flex;gap:8px;}
+  input[type=text]{flex:1;min-width:0;height:38px;padding:0 12px;color:var(--text);
+    background:rgba(0,0,0,0.28);border:1px solid var(--stroke);border-radius:12px;
+    font-size:13px;outline:none;transition:border .15s,box-shadow .15s;}
+  input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(10,132,255,.22);}
+  button{height:38px;padding:0 14px;border-radius:12px;border:1px solid var(--stroke-strong);
+    color:var(--text);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;
+    background:linear-gradient(180deg,#3c3f44,#2c2e32);transition:transform .08s,filter .15s;}
+  button:hover{filter:brightness(1.12);} button:active{transform:scale(.96);}
+  button.primary{border:none;color:#fff;
+    background:linear-gradient(180deg,var(--accent2),var(--accent));
+    box-shadow:0 6px 18px rgba(10,132,255,.35);}
+  button.ghost{background:transparent;border-color:var(--stroke);}
+  /* список адресов */
+  .list{display:flex;flex-direction:column;gap:7px;max-height:34vh;overflow:auto;padding-right:2px;}
+  .chip{display:flex;align-items:center;gap:9px;padding:9px 10px;background:var(--chip);
+    border:1px solid var(--stroke);border-radius:12px;font-size:12.5px;}
+  .chip .mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:var(--text);}
+  .chip .badge{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:0 0 auto;
+    box-shadow:0 0 8px var(--accent);}
+  .chip .x{margin-left:auto;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;
+    width:22px;height:22px;display:grid;place-items:center;border-radius:7px;}
+  .chip .x:hover{background:rgba(255,69,58,.18);color:#ff453a;}
+  .row{display:flex;gap:8px;align-items:center;}
+  .row label{font-size:12px;color:var(--muted);}
+  select{height:34px;border-radius:10px;background:rgba(0,0,0,.28);color:var(--text);
+    border:1px solid var(--stroke);padding:0 8px;font-size:12.5px;outline:none;}
+  .sep{height:1px;background:var(--stroke);margin:2px 0;}
+  .stats{display:flex;gap:8px;flex-wrap:wrap;}
+  .stat{flex:1;min-width:84px;background:rgba(0,0,0,.22);border:1px solid var(--stroke);
+    border-radius:12px;padding:9px 11px;}
+  .stat b{display:block;font-size:18px;font-weight:700;}
+  .stat span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+  .legend{display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:var(--muted);}
+  .legend i{width:22px;height:3px;border-radius:2px;display:inline-block;margin-right:8px;vertical-align:middle;}
+  .err{font-size:11.5px;color:#ff9f9f;background:rgba(255,69,58,.10);border:1px solid rgba(255,69,58,.25);
+    border-radius:10px;padding:8px 10px;white-space:pre-wrap;display:none;}
+  .hint{font-size:11px;color:var(--muted);line-height:1.5;}
+  /* всплывающая карточка узла */
+  #tip{position:fixed;z-index:20;pointer-events:none;display:none;max-width:280px;
+    background:var(--panel-solid);border:1px solid var(--stroke-strong);border-radius:14px;
+    padding:11px 13px;box-shadow:var(--shadow);font-size:12px;}
+  #tip .h{font-family:"SF Mono",ui-monospace,Consolas,monospace;font-size:12px;margin-bottom:6px;word-break:break-all;}
+  #tip .l{display:flex;justify-content:space-between;gap:14px;color:var(--muted);}
+  #tip .l b{color:var(--text);}
+  .badge-mon{display:inline-block;font-size:9.5px;padding:2px 7px;border-radius:7px;margin-bottom:6px;
+    background:rgba(10,132,255,.2);color:var(--accent2);border:1px solid rgba(10,132,255,.4);}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px;}
+  .loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--muted);
+    font-size:13px;display:none;z-index:5;}
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<div class="loading" id="loading">Загрузка графа…</div>
+
+<div id="panel">
+  <div class="title">
+    <span class="dot"></span><h1>Solscan · 3D Flow</h1><small id="conn">локально</small>
+  </div>
+
+  <div class="field">
+    <input id="addr" type="text" placeholder="Solana-адрес для мониторинга" spellcheck="false">
+    <button id="add">＋</button>
+  </div>
+
+  <div class="list" id="list"></div>
+
+  <div class="row">
+    <label>Глубина</label>
+    <select id="limit">
+      <option value="20">20</option>
+      <option value="40" selected>40</option>
+      <option value="60">60</option>
+      <option value="100">100</option>
+    </select>
+    <label>Автообновление</label>
+    <select id="auto">
+      <option value="0" selected>выкл</option>
+      <option value="15">15с</option>
+      <option value="30">30с</option>
+      <option value="60">60с</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <button class="primary" id="build" style="flex:1">Построить граф</button>
+    <button class="ghost" id="demo">Демо</button>
+    <button class="ghost" id="fit">⤢</button>
+  </div>
+
+  <div class="err" id="err"></div>
+
+  <div class="stats">
+    <div class="stat"><b id="nNodes">0</b><span>адресов</span></div>
+    <div class="stat"><b id="nLinks">0</b><span>связей</span></div>
+    <div class="stat"><b id="nVol">0</b><span>оборот</span></div>
+  </div>
+
+  <div class="sep"></div>
+  <div class="legend">
+    <div><i style="background:#30d158"></i>баланс растёт (чистый приток)</div>
+    <div><i style="background:#0a84ff"></i>небольшой приток</div>
+    <div><i style="background:#64d2ff"></i>баланс ≈ ноль</div>
+    <div><i style="background:#ffd60a"></i>небольшой отток</div>
+    <div><i style="background:#ff453a"></i>баланс падает (сильный отток)</div>
+    <div><i style="background:#ffd60a;width:14px;height:9px;border-radius:3px"></i>$ на линии — сумма перевода</div>
+  </div>
+  <div class="hint">Тяни узлы мышью · колесо — зум · клик — фокус на связях · правая кнопка — поворот сцены.</div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+// Если страницу открыли как файл (file://) — всё равно обращаемся к локальному серверу.
+const API_BASE = (location.protocol === 'http:' && location.port)
+  ? '' : 'http://127.0.0.1:8765';
+
+// Открыли файл напрямую (file://) — сразу предупреждаем: так живые данные не загрузятся.
+if (location.protocol === 'file:'){
+  showFatal('Страница открыта как файл (file://) — кнопка «Построить» не достучится до сервера.',
+            'Правильно: запусти  python solscan_gui.py  и открой в браузере  http://127.0.0.1:8765/');
+}
+let addresses = JSON.parse(localStorage.getItem('solscan_addrs') || 'null')
+  || ['6Wzuv7vLc6Vq8HJcHwwSCE9SKcdJiuoJmJm3EMFkWERN'];
+let autoTimer = null;
+let lastData = {nodes:[], links:[]};
+
+const fmt = n => {
+  n = Number(n)||0;
+  if (n>=1e9) return (n/1e9).toFixed(2)+'B';
+  if (n>=1e6) return (n/1e6).toFixed(2)+'M';
+  if (n>=1e3) return (n/1e3).toFixed(2)+'K';
+  return n.toFixed(n<1?4:2);
+};
+const short = a => a && a.length>9 ? a.slice(0,4)+'…'+a.slice(-4) : a;
+
+function saveList(){ localStorage.setItem('solscan_addrs', JSON.stringify(addresses)); }
+
+function renderList(){
+  const box = $('#list'); box.innerHTML='';
+  if(!addresses.length){ box.innerHTML='<div class="hint">Список пуст. Добавь адрес выше.</div>'; return; }
+  addresses.forEach((a,i)=>{
+    const el = document.createElement('div'); el.className='chip';
+    el.innerHTML = `<span class="badge"></span><span class="mono">${short(a)}</span>
+                    <span class="x" title="удалить">×</span>`;
+    el.querySelector('.x').onclick = ()=>{ addresses.splice(i,1); saveList(); renderList(); };
+    box.appendChild(el);
+  });
+}
+
+function addAddr(){
+  const v = $('#addr').value.trim();
+  if(!v) return;
+  if(v.length<32 || v.length>50){ flashErr('Похоже, это не Solana-адрес (длина).'); }
+  if(!addresses.includes(v)) addresses.push(v);
+  $('#addr').value=''; saveList(); renderList();
+}
+
+function flashErr(msg){
+  const e=$('#err');
+  if(/429|too many/i.test(msg)) msg='Лимит free-ключа исчерпан. Подожди ~60 с и нажми «Построить» снова. Пока можно смотреть «Демо».';
+  e.textContent=msg; e.style.display='block';
+  setTimeout(()=>{ if(e.textContent===msg) e.style.display='none'; }, 9000);
+}
+
+// Встроенный демо-граф — чтобы видеть 3D/стиль/интерактив без обращения к API.
+function demoData(){
+  const C='6Wzuv7vLc6Vq8HJcHwwSCE9SKcdJiuoJmJm3EMFkWERN';
+  const cp=['HxK7n3Rt-DEX-AggRouter','9pQw2Bv-USDC-Whale','Ld4Zr8m-Bridge-In',
+            'Tk1Yc6s-CEX-Hot','Rm5Vp0a-LP-Pool','Qz8Nf2d-Counterparty','Wb3Gh9e-Receiver'];
+  const nodes=[{id:C,monitored:true}, ...cp.map(id=>({id,monitored:false}))].map(n=>({
+    id:n.id, label: n.id.length>9? n.id.slice(0,4)+'…'+n.id.slice(-4): n.id,
+    monitored:n.monitored, inflow:0, outflow:0, vol:0, count:0}));
+  const by=Object.fromEntries(nodes.map(n=>[n.id,n]));
+  const L=[
+    [cp[0],C,1820,7],[cp[1],C,9400,3],[cp[2],C,540,2],
+    [C,cp[3],3100,4],[C,cp[4],760,5],[C,cp[5],210,1],
+    [cp[0],cp[4],430,2],[cp[1],cp[3],1200,2],[cp[5],cp[6],95,1]
+  ];
+  const links=L.map(([s,t,v,c])=>{
+    by[s].outflow+=v; by[t].inflow+=v; by[s].vol+=v; by[t].vol+=v; by[s].count+=c; by[t].count+=c;
+    return {source:s,target:t,value:v,count:c,token:'DEMO',token_label:'DEMO'};
+  });
+  return {nodes, links, monitored:[C], errors:[]};
+}
+function loadDemo(){
+  const g=demoData(); MON=new Set(g.monitored); setColorScale(g.nodes); lastData={nodes:g.nodes,links:g.links};
+  Graph.graphData(lastData);
+  $('#nNodes').textContent=g.nodes.length; $('#nLinks').textContent=g.links.length;
+  $('#nVol').textContent=fmt(g.links.reduce((s,l)=>s+l.value,0));
+  $('#conn').textContent='демо'; setTimeout(()=>Graph.zoomToFit(700,60),400);
+}
+
+// ── 3D-граф ──
+if (typeof ForceGraph3D === 'undefined'){
+  showFatal('Библиотека графа не загрузилась', '/lib/3d-force-graph.min.js — проверь, что сервер запущен (python solscan_gui.py) и страница открыта с http://127.0.0.1:8765/');
+  throw new Error('ForceGraph3D undefined');
+}
+if (typeof THREE === 'undefined'){
+  showFatal('three.js не загрузился', '/lib/three.min.js');
+}
+const Graph = ForceGraph3D()(document.getElementById('graph'))
+  .backgroundColor('#00000000')
+  .showNavInfo(false)
+  .nodeRelSize(5)
+  .nodeColor(balanceColor)                   // запасной цвет (если материал не построится)
+  .nodeThreeObject(glossySphere)             // матовый шар с бликом, без подписей
+  .linkCurvature(0.28)                       // ГИБКИЕ изогнутые линии, не прямые лучи
+  .linkLabel(l => '$' + fmt(l.value) + ' · ' + (l.count||1) + ' tx')
+  .linkColor(() => 'rgba(150,162,178,0.45)')
+  .linkOpacity(0.6)
+  .linkWidth(l => Math.max(0.4, Math.log10((l.value||0)+10)))
+  .linkDirectionalParticles(2)               // движение частиц = направление потока
+  .linkDirectionalParticleWidth(l => Math.max(1.4, Math.log10((l.value||0)+10)*1.4))
+  .linkDirectionalParticleSpeed(l => 0.004 + Math.min(0.01, (l.count||1)*0.0008))
+  .linkDirectionalParticleColor(() => '#64d2ff')
+  .linkThreeObjectExtend(true)
+  .linkThreeObject(linkValueSprite)          // сумма перевода в $ на линии
+  .linkPositionUpdate(linkPos)
+  .onNodeClick(focusNode)
+  .onNodeHover(showTip)
+  .onNodeDragEnd(n => { n.fx=n.x; n.fy=n.y; n.fz=n.z; });  // зафиксировать после перетаскивания
+
+Graph.d3Force('charge').strength(-140);
+
+// Дополнительный свет — чтобы на матовых шарах появился выраженный блик/отражение.
+try{
+  const scene = Graph.scene();
+  const key = new THREE.DirectionalLight(0xffffff, 1.7); key.position.set(120, 170, 130); scene.add(key);
+  const rim = new THREE.PointLight(0x8a5cff, 1.1, 0);   rim.position.set(-180, -70, -140); scene.add(rim);
+  scene.add(new THREE.AmbientLight(0x1a1c24, 1.0));
+}catch(_){}
+
+let MON = new Set();
+let colorScaleMax = 1;
+
+// Шкала цвета по балансу: считаем масштаб нетто-потока (приток−отток) по всем узлам.
+function setColorScale(nodes){
+  colorScaleMax = Math.max(1, ...nodes.map(n => Math.abs((n.inflow||0) - (n.outflow||0))));
+}
+
+// Цвет шара = баланс счёта (нетто). Зелёный→синий — в плюс, жёлтый→красный — в минус.
+function balanceColor(n){
+  const net = (n.inflow||0) - (n.outflow||0);
+  const r = net / (colorScaleMax || 1);
+  if (r >=  0.30) return '#30d158';   // зелёный — баланс заметно растёт
+  if (r >   0.02) return '#0a84ff';   // синий — небольшой приток
+  if (r >= -0.02) return '#64d2ff';   // голубой — баланс ≈ ноль
+  if (r >  -0.30) return '#ffd60a';   // жёлтый — небольшой отток
+  return '#ff453a';                   // красный — баланс заметно падает
+}
+
+const HAS_SPRITE = (typeof SpriteText !== 'undefined');
+const HAS_THREE  = (typeof THREE !== 'undefined');
+
+// Матовый шар с бликом света. Размер — по обороту. Без подписей.
+function glossySphere(n){
+  if(!HAS_THREE) return undefined;
+  try{
+    const size = Math.max(3.2, Math.log10((n.vol||0)+10) * 4.2);
+    const col = new THREE.Color(balanceColor(n));
+    const mat = new THREE.MeshStandardMaterial({
+      color: col,
+      roughness: 0.30,                                  // матовая поверхность с мягким бликом
+      metalness: 0.22,
+      emissive: col.clone().multiplyScalar(0.22),       // лёгкое неоновое свечение
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 30, 30), mat);
+
+    // Крупная «M» на шаре мониторинга.
+    if (n.monitored && HAS_SPRITE){
+      try{
+        const m = new SpriteText('M');
+        m.textHeight = size * 1.5;
+        m.color = '#ffffff';
+        m.fontWeight = '900';
+        m.strokeColor = '#b026ff';                      // пурпурное свечение контура
+        m.strokeWidth = 2;
+        m.material.depthTest = false;                   // всегда поверх шара
+        m.renderOrder = 999;
+        mesh.add(m);
+      }catch(_){}
+    }
+    return mesh;
+  }catch(_){ return undefined; }
+}
+
+// Сумма перевода в $ на линии — неоновый красный на тёмно-пурпурном.
+function linkValueSprite(l){
+  if(!HAS_SPRITE) return undefined;
+  try{
+    const s = new SpriteText('$' + fmt(l.value));
+    s.color = '#ff2d6e';                                // неоновый красный
+    s.textHeight = 2.9; s.fontWeight = '800';
+    s.backgroundColor = 'rgba(26,4,40,0.62)';           // тёмно-пурпурный фон
+    s.strokeColor = '#b026ff';                          // пурпурное свечение контура
+    s.strokeWidth = 0.7;
+    s.padding = 2; s.borderRadius = 4;
+    return s;
+  }catch(_){ return undefined; }
+}
+
+// Положение $-метки — середина связи.
+function linkPos(sprite, { start, end }){
+  ['x','y','z'].forEach(c => { sprite.position[c] = start[c] + (end[c]-start[c]) / 2; });
+}
+
+function focusNode(node){
+  const d = 90;
+  const r = 1 + d / Math.hypot(node.x,node.y,node.z || 1);
+  Graph.cameraPosition({x:node.x*r, y:node.y*r, z:node.z*r}, node, 900);
+}
+
+function showTip(node){
+  const tip=$('#tip');
+  if(!node){ tip.style.display='none'; return; }
+  tip.innerHTML =
+    (node.monitored?'<span class="badge-mon">МОНИТОРИНГ</span><br>':'')+
+    `<div class="h">${node.id}</div>`+
+    `<div class="l"><span>входящий ←</span><b>${fmt(node.inflow)}</b></div>`+
+    `<div class="l"><span>исходящий →</span><b>${fmt(node.outflow)}</b></div>`+
+    `<div class="l"><span>транзакций</span><b>${node.count||0}</b></div>`;
+  tip.style.display='block';
+}
+addEventListener('mousemove', e=>{
+  const tip=$('#tip'); if(tip.style.display==='block'){
+    tip.style.left=Math.min(e.clientX+16, innerWidth-300)+'px';
+    tip.style.top=(e.clientY+16)+'px';
+  }
+});
+
+async function build(){
+  if(!addresses.length){ flashErr('Добавь хотя бы один адрес.'); return; }
+  $('#err').style.display='none';
+  $('#loading').style.display='block';
+  $('#conn').textContent='запрос…';
+  try{
+    const limit = $('#limit').value;
+    const res = await fetch(API_BASE+'/api/graph?addresses='+encodeURIComponent(addresses.join(','))+'&limit='+limit);
+    const g = await res.json();
+    if(g.error){ flashErr('Ошибка: '+g.error); return; }
+    if(g.errors && g.errors.length) flashErr(g.errors.join('\n'));
+    MON = new Set(g.monitored||[]);
+    setColorScale(g.nodes);
+    lastData = {nodes:g.nodes, links:g.links};
+    Graph.graphData(lastData);
+    $('#nNodes').textContent = g.nodes.length;
+    $('#nLinks').textContent = g.links.length;
+    $('#nVol').textContent = fmt(g.links.reduce((s,l)=>s+(l.value||0),0));
+    $('#conn').textContent='готово';
+    setTimeout(()=>Graph.zoomToFit(700, 60), 400);
+  }catch(e){
+    flashErr('Сервер не отвечает. Запусти в терминале:  python solscan_gui.py  — и открой http://127.0.0.1:8765/ . Демо работает без сервера.');
+    $('#conn').textContent='нет сервера';
+  }
+  finally{ $('#loading').style.display='none'; }
+}
+
+function setAuto(){
+  if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
+  const s = parseInt($('#auto').value,10);
+  if(s>0) autoTimer=setInterval(build, s*1000);
+}
+
+// события
+$('#add').onclick = addAddr;
+$('#addr').addEventListener('keydown', e=>{ if(e.key==='Enter') addAddr(); });
+$('#build').onclick = build;
+$('#demo').onclick = loadDemo;
+$('#fit').onclick = ()=>Graph.zoomToFit(700,60);
+$('#auto').onchange = setAuto;
+addEventListener('resize', ()=>Graph.width(innerWidth).height(innerHeight));
+
+renderList();
+loadDemo();        // при запуске сразу показываем рабочий 3D-граф (без обращения к API)
+</script>
+</body>
+</html>

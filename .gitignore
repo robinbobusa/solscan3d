@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Секреты / локальная конфигурация — НИКОГДА не коммитить
+.env
+config.json
+*.token
+*.key
+
+# Выгрузки данных
+*.csv
+
+# OS / редакторы
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
