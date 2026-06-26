@@ -6,16 +6,16 @@ __pycache__/
 venv/
 env/
 
-# Секреты / локальная конфигурация — НИКОГДА не коммитить
+# Secrets / local configuration — NEVER commit
 .env
 config.json
 *.token
 *.key
 
-# Выгрузки данных
+# Data exports
 *.csv
 
-# OS / редакторы
+# OS / editors
 .DS_Store
 Thumbs.db
 .idea/

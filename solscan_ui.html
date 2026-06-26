@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Solscan · 3D Flow</title>
 <script>
-  // Ловим ЛЮБУЮ ошибку (включая сбой загрузки библиотек) и показываем на экране,
-  // чтобы вместо белого окна был понятный текст.
+  // Catch ANY error (including a library failing to load) and show it on screen,
+  // so instead of a blank window you get a readable message.
   function showFatal(msg, extra){
     var b = document.getElementById('fatal');
     if(!b){
@@ -17,10 +17,10 @@
         'box-shadow:0 12px 40px rgba(0,0,0,.5)';
       (document.body||document.documentElement).appendChild(b);
     }
-    b.textContent = 'ОШИБКА: ' + msg + (extra ? ('\n'+extra) : '');
+    b.textContent = 'ERROR: ' + msg + (extra ? ('\n'+extra) : '');
   }
   window.addEventListener('error', function(e){
-    if(e && e.target && e.target.src) showFatal('не загрузился файл', e.target.src);
+    if(e && e.target && e.target.src) showFatal('file failed to load', e.target.src);
     else showFatal((e&&e.message)||'script error', (e&&e.filename?e.filename+':'+e.lineno:''));
   }, true);
   window.addEventListener('unhandledrejection', function(e){
@@ -53,7 +53,7 @@
       radial-gradient(900px 700px at 12% 110%, #161028 0%, rgba(22,16,40,0) 55%),
       linear-gradient(160deg,var(--bg1),var(--bg2));}
   #graph{position:fixed;inset:0;}
-  /* ── Панель управления (электрический серый, стекло) ── */
+  /* ── Control panel (electric gray, glass) ── */
   #panel{
     position:fixed;top:18px;left:18px;width:330px;max-height:calc(100vh - 36px);
     display:flex;flex-direction:column;gap:14px;padding:16px;z-index:10;
@@ -80,7 +80,7 @@
     background:linear-gradient(180deg,var(--accent2),var(--accent));
     box-shadow:0 6px 18px rgba(10,132,255,.35);}
   button.ghost{background:transparent;border-color:var(--stroke);}
-  /* список адресов */
+  /* address list */
   .list{display:flex;flex-direction:column;gap:7px;max-height:34vh;overflow:auto;padding-right:2px;}
   .chip{display:flex;align-items:center;gap:9px;padding:9px 10px;background:var(--chip);
     border:1px solid var(--stroke);border-radius:12px;font-size:12.5px;}
@@ -105,7 +105,7 @@
   .err{font-size:11.5px;color:#ff9f9f;background:rgba(255,69,58,.10);border:1px solid rgba(255,69,58,.25);
     border-radius:10px;padding:8px 10px;white-space:pre-wrap;display:none;}
   .hint{font-size:11px;color:var(--muted);line-height:1.5;}
-  /* всплывающая карточка узла */
+  /* node tooltip card */
   #tip{position:fixed;z-index:20;pointer-events:none;display:none;max-width:280px;
     background:var(--panel-solid);border:1px solid var(--stroke-strong);border-radius:14px;
     padding:11px 13px;box-shadow:var(--shadow);font-size:12px;}
@@ -122,75 +122,75 @@
 </head>
 <body>
 <div id="graph"></div>
-<div class="loading" id="loading">Загрузка графа…</div>
+<div class="loading" id="loading">Loading graph…</div>
 
 <div id="panel">
   <div class="title">
-    <span class="dot"></span><h1>Solscan · 3D Flow</h1><small id="conn">локально</small>
+    <span class="dot"></span><h1>Solscan · 3D Flow</h1><small id="conn">local</small>
   </div>
 
   <div class="field">
-    <input id="addr" type="text" placeholder="Solana-адрес для мониторинга" spellcheck="false">
+    <input id="addr" type="text" placeholder="Solana address to monitor" spellcheck="false">
     <button id="add">＋</button>
   </div>
 
   <div class="list" id="list"></div>
 
   <div class="row">
-    <label>Глубина</label>
+    <label>Depth</label>
     <select id="limit">
       <option value="20">20</option>
       <option value="40" selected>40</option>
       <option value="60">60</option>
       <option value="100">100</option>
     </select>
-    <label>Автообновление</label>
+    <label>Auto-refresh</label>
     <select id="auto">
-      <option value="0" selected>выкл</option>
-      <option value="15">15с</option>
-      <option value="30">30с</option>
-      <option value="60">60с</option>
+      <option value="0" selected>off</option>
+      <option value="15">15s</option>
+      <option value="30">30s</option>
+      <option value="60">60s</option>
     </select>
   </div>
 
   <div class="field">
-    <button class="primary" id="build" style="flex:1">Построить граф</button>
-    <button class="ghost" id="demo">Демо</button>
+    <button class="primary" id="build" style="flex:1">Build graph</button>
+    <button class="ghost" id="demo">Demo</button>
     <button class="ghost" id="fit">⤢</button>
   </div>
 
   <div class="err" id="err"></div>
 
   <div class="stats">
-    <div class="stat"><b id="nNodes">0</b><span>адресов</span></div>
-    <div class="stat"><b id="nLinks">0</b><span>связей</span></div>
-    <div class="stat"><b id="nVol">0</b><span>оборот</span></div>
+    <div class="stat"><b id="nNodes">0</b><span>addresses</span></div>
+    <div class="stat"><b id="nLinks">0</b><span>links</span></div>
+    <div class="stat"><b id="nVol">0</b><span>volume</span></div>
   </div>
 
   <div class="sep"></div>
   <div class="legend">
-    <div><i style="background:#30d158"></i>баланс растёт (чистый приток)</div>
-    <div><i style="background:#0a84ff"></i>небольшой приток</div>
-    <div><i style="background:#64d2ff"></i>баланс ≈ ноль</div>
-    <div><i style="background:#ffd60a"></i>небольшой отток</div>
-    <div><i style="background:#ff453a"></i>баланс падает (сильный отток)</div>
-    <div><i style="background:#ffd60a;width:14px;height:9px;border-radius:3px"></i>$ на линии — сумма перевода</div>
+    <div><i style="background:#30d158"></i>balance rising (net inflow)</div>
+    <div><i style="background:#0a84ff"></i>small inflow</div>
+    <div><i style="background:#64d2ff"></i>balance ≈ zero</div>
+    <div><i style="background:#ffd60a"></i>small outflow</div>
+    <div><i style="background:#ff453a"></i>balance falling (strong outflow)</div>
+    <div><i style="background:#ffd60a;width:14px;height:9px;border-radius:3px"></i>$ on a link — transfer amount</div>
   </div>
-  <div class="hint">Тяни узлы мышью · колесо — зум · клик — фокус на связях · правая кнопка — поворот сцены.</div>
+  <div class="hint">Drag nodes with the mouse · wheel to zoom · click to focus on links · right button to rotate the scene.</div>
 </div>
 
 <div id="tip"></div>
 
 <script>
 const $ = s => document.querySelector(s);
-// Если страницу открыли как файл (file://) — всё равно обращаемся к локальному серверу.
+// If the page was opened as a file (file://), still talk to the local server.
 const API_BASE = (location.protocol === 'http:' && location.port)
   ? '' : 'http://127.0.0.1:8765';
 
-// Открыли файл напрямую (file://) — сразу предупреждаем: так живые данные не загрузятся.
+// Opened directly as a file (file://) — warn right away: live data won't load this way.
 if (location.protocol === 'file:'){
-  showFatal('Страница открыта как файл (file://) — кнопка «Построить» не достучится до сервера.',
-            'Правильно: запусти  python solscan_gui.py  и открой в браузере  http://127.0.0.1:8765/');
+  showFatal('The page was opened as a file (file://) — the "Build" button cannot reach the server.',
+            'Correct way: run  python solscan_gui.py  and open  http://127.0.0.1:8765/  in your browser.');
 }
 let addresses = JSON.parse(localStorage.getItem('solscan_addrs') || 'null')
   || ['6Wzuv7vLc6Vq8HJcHwwSCE9SKcdJiuoJmJm3EMFkWERN'];
@@ -210,11 +210,11 @@ function saveList(){ localStorage.setItem('solscan_addrs', JSON.stringify(addres
 
 function renderList(){
   const box = $('#list'); box.innerHTML='';
-  if(!addresses.length){ box.innerHTML='<div class="hint">Список пуст. Добавь адрес выше.</div>'; return; }
+  if(!addresses.length){ box.innerHTML='<div class="hint">List is empty. Add an address above.</div>'; return; }
   addresses.forEach((a,i)=>{
     const el = document.createElement('div'); el.className='chip';
     el.innerHTML = `<span class="badge"></span><span class="mono">${short(a)}</span>
-                    <span class="x" title="удалить">×</span>`;
+                    <span class="x" title="remove">×</span>`;
     el.querySelector('.x').onclick = ()=>{ addresses.splice(i,1); saveList(); renderList(); };
     box.appendChild(el);
   });
@@ -223,19 +223,19 @@ function renderList(){
 function addAddr(){
   const v = $('#addr').value.trim();
   if(!v) return;
-  if(v.length<32 || v.length>50){ flashErr('Похоже, это не Solana-адрес (длина).'); }
+  if(v.length<32 || v.length>50){ flashErr('This does not look like a Solana address (length).'); }
   if(!addresses.includes(v)) addresses.push(v);
   $('#addr').value=''; saveList(); renderList();
 }
 
 function flashErr(msg){
   const e=$('#err');
-  if(/429|too many/i.test(msg)) msg='Лимит free-ключа исчерпан. Подожди ~60 с и нажми «Построить» снова. Пока можно смотреть «Демо».';
+  if(/429|too many/i.test(msg)) msg='Free-key rate limit reached. Wait ~60s and press "Build" again. Meanwhile you can view the "Demo".';
   e.textContent=msg; e.style.display='block';
   setTimeout(()=>{ if(e.textContent===msg) e.style.display='none'; }, 9000);
 }
 
-// Встроенный демо-граф — чтобы видеть 3D/стиль/интерактив без обращения к API.
+// Built-in demo graph — to see the 3D/style/interaction without hitting the API.
 function demoData(){
   const C='6Wzuv7vLc6Vq8HJcHwwSCE9SKcdJiuoJmJm3EMFkWERN';
   const cp=['HxK7n3Rt-DEX-AggRouter','9pQw2Bv-USDC-Whale','Ld4Zr8m-Bridge-In',
@@ -260,42 +260,42 @@ function loadDemo(){
   Graph.graphData(lastData);
   $('#nNodes').textContent=g.nodes.length; $('#nLinks').textContent=g.links.length;
   $('#nVol').textContent=fmt(g.links.reduce((s,l)=>s+l.value,0));
-  $('#conn').textContent='демо'; setTimeout(()=>Graph.zoomToFit(700,60),400);
+  $('#conn').textContent='demo'; setTimeout(()=>Graph.zoomToFit(700,60),400);
 }
 
-// ── 3D-граф ──
+// ── 3D graph ──
 if (typeof ForceGraph3D === 'undefined'){
-  showFatal('Библиотека графа не загрузилась', '/lib/3d-force-graph.min.js — проверь, что сервер запущен (python solscan_gui.py) и страница открыта с http://127.0.0.1:8765/');
+  showFatal('The graph library failed to load', '/lib/3d-force-graph.min.js — make sure the server is running (python solscan_gui.py) and the page is opened at http://127.0.0.1:8765/');
   throw new Error('ForceGraph3D undefined');
 }
 if (typeof THREE === 'undefined'){
-  showFatal('three.js не загрузился', '/lib/three.min.js');
+  showFatal('three.js failed to load', '/lib/three.min.js');
 }
 const Graph = ForceGraph3D()(document.getElementById('graph'))
   .backgroundColor('#00000000')
   .showNavInfo(false)
   .nodeRelSize(5)
-  .nodeColor(balanceColor)                   // запасной цвет (если материал не построится)
-  .nodeThreeObject(glossySphere)             // матовый шар с бликом, без подписей
-  .linkCurvature(0.28)                       // ГИБКИЕ изогнутые линии, не прямые лучи
+  .nodeColor(balanceColor)                   // fallback color (if the material can't be built)
+  .nodeThreeObject(glossySphere)             // glossy sphere with a highlight, no labels
+  .linkCurvature(0.28)                       // SMOOTH curved links, not straight rays
   .linkLabel(l => '$' + fmt(l.value) + ' · ' + (l.count||1) + ' tx')
   .linkColor(() => 'rgba(150,162,178,0.45)')
   .linkOpacity(0.6)
   .linkWidth(l => Math.max(0.4, Math.log10((l.value||0)+10)))
-  .linkDirectionalParticles(2)               // движение частиц = направление потока
+  .linkDirectionalParticles(2)               // moving particles = flow direction
   .linkDirectionalParticleWidth(l => Math.max(1.4, Math.log10((l.value||0)+10)*1.4))
   .linkDirectionalParticleSpeed(l => 0.004 + Math.min(0.01, (l.count||1)*0.0008))
   .linkDirectionalParticleColor(() => '#64d2ff')
   .linkThreeObjectExtend(true)
-  .linkThreeObject(linkValueSprite)          // сумма перевода в $ на линии
+  .linkThreeObject(linkValueSprite)          // transfer amount in $ on the link
   .linkPositionUpdate(linkPos)
   .onNodeClick(focusNode)
   .onNodeHover(showTip)
-  .onNodeDragEnd(n => { n.fx=n.x; n.fy=n.y; n.fz=n.z; });  // зафиксировать после перетаскивания
+  .onNodeDragEnd(n => { n.fx=n.x; n.fy=n.y; n.fz=n.z; });  // pin after dragging
 
 Graph.d3Force('charge').strength(-140);
 
-// Дополнительный свет — чтобы на матовых шарах появился выраженный блик/отражение.
+// Extra lighting — to give the glossy spheres a pronounced highlight/reflection.
 try{
   const scene = Graph.scene();
   const key = new THREE.DirectionalLight(0xffffff, 1.7); key.position.set(120, 170, 130); scene.add(key);
@@ -306,26 +306,26 @@ try{
 let MON = new Set();
 let colorScaleMax = 1;
 
-// Шкала цвета по балансу: считаем масштаб нетто-потока (приток−отток) по всем узлам.
+// Color scale by balance: compute the net-flow magnitude (inflow−outflow) across all nodes.
 function setColorScale(nodes){
   colorScaleMax = Math.max(1, ...nodes.map(n => Math.abs((n.inflow||0) - (n.outflow||0))));
 }
 
-// Цвет шара = баланс счёта (нетто). Зелёный→синий — в плюс, жёлтый→красный — в минус.
+// Sphere color = account balance (net). Green→blue for positive, yellow→red for negative.
 function balanceColor(n){
   const net = (n.inflow||0) - (n.outflow||0);
   const r = net / (colorScaleMax || 1);
-  if (r >=  0.30) return '#30d158';   // зелёный — баланс заметно растёт
-  if (r >   0.02) return '#0a84ff';   // синий — небольшой приток
-  if (r >= -0.02) return '#64d2ff';   // голубой — баланс ≈ ноль
-  if (r >  -0.30) return '#ffd60a';   // жёлтый — небольшой отток
-  return '#ff453a';                   // красный — баланс заметно падает
+  if (r >=  0.30) return '#30d158';   // green — balance rising noticeably
+  if (r >   0.02) return '#0a84ff';   // blue — small inflow
+  if (r >= -0.02) return '#64d2ff';   // cyan — balance ≈ zero
+  if (r >  -0.30) return '#ffd60a';   // yellow — small outflow
+  return '#ff453a';                   // red — balance falling noticeably
 }
 
 const HAS_SPRITE = (typeof SpriteText !== 'undefined');
 const HAS_THREE  = (typeof THREE !== 'undefined');
 
-// Матовый шар с бликом света. Размер — по обороту. Без подписей.
+// Glossy sphere with a light highlight. Size by volume. No labels.
 function glossySphere(n){
   if(!HAS_THREE) return undefined;
   try{
@@ -333,22 +333,22 @@ function glossySphere(n){
     const col = new THREE.Color(balanceColor(n));
     const mat = new THREE.MeshStandardMaterial({
       color: col,
-      roughness: 0.30,                                  // матовая поверхность с мягким бликом
+      roughness: 0.30,                                  // matte surface with a soft highlight
       metalness: 0.22,
-      emissive: col.clone().multiplyScalar(0.22),       // лёгкое неоновое свечение
+      emissive: col.clone().multiplyScalar(0.22),       // slight neon glow
     });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 30, 30), mat);
 
-    // Крупная «M» на шаре мониторинга.
+    // A large "M" on the monitored sphere.
     if (n.monitored && HAS_SPRITE){
       try{
         const m = new SpriteText('M');
         m.textHeight = size * 1.5;
         m.color = '#ffffff';
         m.fontWeight = '900';
-        m.strokeColor = '#b026ff';                      // пурпурное свечение контура
+        m.strokeColor = '#b026ff';                      // purple outline glow
         m.strokeWidth = 2;
-        m.material.depthTest = false;                   // всегда поверх шара
+        m.material.depthTest = false;                   // always on top of the sphere
         m.renderOrder = 999;
         mesh.add(m);
       }catch(_){}
@@ -357,22 +357,22 @@ function glossySphere(n){
   }catch(_){ return undefined; }
 }
 
-// Сумма перевода в $ на линии — неоновый красный на тёмно-пурпурном.
+// Transfer amount in $ on the link — neon red on dark purple.
 function linkValueSprite(l){
   if(!HAS_SPRITE) return undefined;
   try{
     const s = new SpriteText('$' + fmt(l.value));
-    s.color = '#ff2d6e';                                // неоновый красный
+    s.color = '#ff2d6e';                                // neon red
     s.textHeight = 2.9; s.fontWeight = '800';
-    s.backgroundColor = 'rgba(26,4,40,0.62)';           // тёмно-пурпурный фон
-    s.strokeColor = '#b026ff';                          // пурпурное свечение контура
+    s.backgroundColor = 'rgba(26,4,40,0.62)';           // dark purple background
+    s.strokeColor = '#b026ff';                          // purple outline glow
     s.strokeWidth = 0.7;
     s.padding = 2; s.borderRadius = 4;
     return s;
   }catch(_){ return undefined; }
 }
 
-// Положение $-метки — середина связи.
+// $-label position — midpoint of the link.
 function linkPos(sprite, { start, end }){
   ['x','y','z'].forEach(c => { sprite.position[c] = start[c] + (end[c]-start[c]) / 2; });
 }
@@ -387,11 +387,11 @@ function showTip(node){
   const tip=$('#tip');
   if(!node){ tip.style.display='none'; return; }
   tip.innerHTML =
-    (node.monitored?'<span class="badge-mon">МОНИТОРИНГ</span><br>':'')+
+    (node.monitored?'<span class="badge-mon">MONITORED</span><br>':'')+
     `<div class="h">${node.id}</div>`+
-    `<div class="l"><span>входящий ←</span><b>${fmt(node.inflow)}</b></div>`+
-    `<div class="l"><span>исходящий →</span><b>${fmt(node.outflow)}</b></div>`+
-    `<div class="l"><span>транзакций</span><b>${node.count||0}</b></div>`;
+    `<div class="l"><span>inflow ←</span><b>${fmt(node.inflow)}</b></div>`+
+    `<div class="l"><span>outflow →</span><b>${fmt(node.outflow)}</b></div>`+
+    `<div class="l"><span>transactions</span><b>${node.count||0}</b></div>`;
   tip.style.display='block';
 }
 addEventListener('mousemove', e=>{
@@ -402,15 +402,15 @@ addEventListener('mousemove', e=>{
 });
 
 async function build(){
-  if(!addresses.length){ flashErr('Добавь хотя бы один адрес.'); return; }
+  if(!addresses.length){ flashErr('Add at least one address.'); return; }
   $('#err').style.display='none';
   $('#loading').style.display='block';
-  $('#conn').textContent='запрос…';
+  $('#conn').textContent='requesting…';
   try{
     const limit = $('#limit').value;
     const res = await fetch(API_BASE+'/api/graph?addresses='+encodeURIComponent(addresses.join(','))+'&limit='+limit);
     const g = await res.json();
-    if(g.error){ flashErr('Ошибка: '+g.error); return; }
+    if(g.error){ flashErr('Error: '+g.error); return; }
     if(g.errors && g.errors.length) flashErr(g.errors.join('\n'));
     MON = new Set(g.monitored||[]);
     setColorScale(g.nodes);
@@ -419,11 +419,11 @@ async function build(){
     $('#nNodes').textContent = g.nodes.length;
     $('#nLinks').textContent = g.links.length;
     $('#nVol').textContent = fmt(g.links.reduce((s,l)=>s+(l.value||0),0));
-    $('#conn').textContent='готово';
+    $('#conn').textContent='done';
     setTimeout(()=>Graph.zoomToFit(700, 60), 400);
   }catch(e){
-    flashErr('Сервер не отвечает. Запусти в терминале:  python solscan_gui.py  — и открой http://127.0.0.1:8765/ . Демо работает без сервера.');
-    $('#conn').textContent='нет сервера';
+    flashErr('Server not responding. Run in a terminal:  python solscan_gui.py  — and open http://127.0.0.1:8765/ . The demo works without a server.');
+    $('#conn').textContent='no server';
   }
   finally{ $('#loading').style.display='none'; }
 }
@@ -434,7 +434,7 @@ function setAuto(){
   if(s>0) autoTimer=setInterval(build, s*1000);
 }
 
-// события
+// events
 $('#add').onclick = addAddr;
 $('#addr').addEventListener('keydown', e=>{ if(e.key==='Enter') addAddr(); });
 $('#build').onclick = build;
@@ -444,7 +444,7 @@ $('#auto').onchange = setAuto;
 addEventListener('resize', ()=>Graph.width(innerWidth).height(innerHeight));
 
 renderList();
-loadDemo();        // при запуске сразу показываем рабочий 3D-граф (без обращения к API)
+loadDemo();        // show a working 3D graph right away on startup (no API call)
 </script>
 </body>
 </html>
